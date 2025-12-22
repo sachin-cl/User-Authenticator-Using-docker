@@ -1,9 +1,10 @@
-version: "3.9"
+version: "3.8"
 
 services:
   mysql-db:
     image: mysql:5.7
     container_name: mysql-db
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: student@123
       MYSQL_DATABASE: authdb
@@ -15,18 +16,17 @@ services:
   backend:
     build: ./backend
     container_name: backend
-    ports:
-      - "5000:5000"
+    restart: unless-stopped
     depends_on:
       - mysql-db
-
-  frontend:
-    build: ./frontend
-    container_name: frontend
+    environment:
+      DB_HOST: mysql-db
+      DB_USER: root
+      DB_PASSWORD: student@123
+      DB_NAME: authdb
+      JWT_SECRET_KEY: super-secret-key
     ports:
-      - "3000:80"
-    depends_on:
-      - backend
+      - "5000:5000"
 
 volumes:
   mysql_data:
