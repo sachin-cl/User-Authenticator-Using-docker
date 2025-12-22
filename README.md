@@ -1,44 +1,77 @@
-User-Authenticator-Using-docker-
+User Authenticator Using Docker
 
-A full-stack user authentication application built with Flask (Python), MySQL, and React, all containerized using Docker & Docker Compose.
-This project demonstrates a clean, modular approach to building and deploying modern authentication systems.
+A full-stack authentication system built with React, Flask, JWT, and MySQL, fully containerized using Docker Compose.
+The application supports user registration, login, JWT-based authentication, protected dashboard access, and role-based authorization.
 
 🚀 Features
-🔐 Authentication
 
-User Registration
+✅ User Registration & Login
 
-Secure Login
+🔐 JWT-based Authentication
 
-Password Hashing
+🛡️ Protected Backend Routes
 
-JSON Web Token (JWT) based authentication
+📊 Protected Frontend Dashboard
 
-Session persistence
+👤 Role-based Access (User / Admin)
 
-🧩 Tech Stack
+🐳 Dockerized Backend, Frontend & Database
+
+🔁 Persistent MySQL Database using Docker Volumes
+
+🧱 Tech Stack
 Frontend
 
-React (Vite or CRA)
+React
 
-Axios for API calls
+JavaScript
 
-Responsive UI
+Fetch API
 
 Backend
 
-Flask (Python)
+Flask
+
+Flask-JWT-Extended
 
 Flask-CORS
 
-JWT Authentication
+bcrypt (password hashing)
 
-MySQL Database Integration
+Database
 
-Infrastructure
+MySQL 5.7
+
+DevOps / Tools
 
 Docker
 
 Docker Compose
 
-Multi-container setup (frontend, backend, db)
+Git & GitHub
+
+🔄 Application Flow
+
+User registers with email & password
+
+Password is securely hashed using bcrypt
+
+User logs in → backend generates JWT
+
+JWT is stored on the client
+
+Frontend uses JWT to access protected routes
+
+Dashboard is accessible only when authenticated
+
+Role-based authorization controls admin access
+
+🔐 JWT Authentication
+
+JWT identity stores the user email (string)
+
+User role is stored as additional JWT claims
+
+Protected backend routes require valid JWT
+
+Frontend dashboard is protected using JWT state
