@@ -28,5 +28,14 @@ services:
     ports:
       - "5000:5000"
 
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
 volumes:
   mysql_data:

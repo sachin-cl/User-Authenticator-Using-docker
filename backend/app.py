@@ -115,14 +115,20 @@ def profile():
     }), 200
 
 # ---------------- ADMIN (ROLE PROTECTED) ----------------
-@app.route("/admin", methods=["GET"])
+@app.route("/admin/users", methods=["GET"])
 @jwt_required()
-def admin():
+def list_users():
     claims = get_jwt()
     if claims.get("role") != "admin":
         return jsonify({"error": "Admins only"}), 403
 
-    return jsonify({"message": "Welcome Admin"}), 200
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("SELECT id, email, role FROM users")
+    users = cursor.fetchall()
+
+    return jsonify(users), 200
+
 
 # ---------------- START ----------------
 if __name__ == "__main__":
