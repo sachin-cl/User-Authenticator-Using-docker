@@ -6,8 +6,6 @@ function App() {
   const [message, setMessage] = useState("");
   const [profile, setProfile] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  // 🔹 ADDED
   const [users, setUsers] = useState([]);
 
   const backendUrl =
@@ -28,33 +26,85 @@ function App() {
       const res = await fetch(`${backendUrl}/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const data = await res.json();
       if (!res.ok) return setMessage("Failed to load profile");
-
       setProfile(data);
     } catch {
       setMessage("Profile request failed");
     }
   }
 
-  // 🔹 ADDED: FETCH USERS (ADMIN ONLY)
+  // ---------------- FETCH USERS (ADMIN) ----------------
   async function fetchUsers() {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`${backendUrl}/admin/users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const data = await res.json();
-      if (!res.ok) {
-        setMessage(data.error || "Failed to fetch users");
-        return;
-      }
-
+      if (!res.ok) return setMessage(data.error || "Failed to fetch users");
       setUsers(data);
     } catch {
       setMessage("User fetch failed");
+    }
+  }
+
+  // ---------------- UPDATE USER ROLE ----------------
+  async function updateUserRole(userId, role) {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(
+        `${backendUrl}/admin/users/${userId}/role`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ role }),
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Role update failed");
+        return;
+      }
+
+      fetchUsers();
+    } catch {
+      alert("Role update error");
+    }
+  }
+
+  // ---------------- DELETE USER ----------------
+  async function deleteUser(userId) {
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this user?"
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(
+        `${backendUrl}/admin/users/${userId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Delete failed");
+        return;
+      }
+
+      fetchUsers();
+    } catch {
+      alert("Delete request failed");
     }
   }
 
@@ -66,10 +116,8 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await res.json();
       if (!res.ok) return setMessage(data.error || "Registration failed");
-
       setMessage(data.message);
     } catch {
       setMessage("Error connecting to server");
@@ -84,7 +132,6 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await res.json();
       if (!res.ok) return setMessage(data.error || "Login failed");
 
@@ -147,7 +194,6 @@ function App() {
         </div>
 
         <div style={{ padding: "40px", maxWidth: "800px" }}>
-          {/* PROFILE */}
           <div
             style={{
               background: "linear-gradient(145deg, #151925, #1c2230)",
@@ -160,7 +206,6 @@ function App() {
             <p><strong>Role:</strong> ADMIN</p>
           </div>
 
-          {/* ADMIN CONTROLS */}
           <div
             style={{
               background: "linear-gradient(145deg, #151925, #1c2230)",
@@ -170,7 +215,6 @@ function App() {
           >
             <h3>Admin Controls</h3>
 
-            {/* 🔹 MANAGE USERS BUTTON */}
             <button
               onClick={fetchUsers}
               style={{
@@ -188,7 +232,6 @@ function App() {
               Manage Users
             </button>
 
-            {/* 🔹 USERS LIST */}
             {users.length > 0 && (
               <div>
                 <h4>Registered Users</h4>
@@ -196,11 +239,62 @@ function App() {
                   <div
                     key={u.id}
                     style={{
-                      padding: "8px 0",
+                      padding: "10px 0",
                       borderBottom: "1px solid #333",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
                     }}
                   >
-                    {u.email} — <strong>{u.role}</strong>
+                    <div>
+                      {u.email} — <strong>{u.role}</strong>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      {u.role === "user" ? (
+                        <button
+                          onClick={() => updateUserRole(u.id, "admin")}
+                          style={{
+                            backgroundColor: "#27ae60",
+                            color: "white",
+                            border: "none",
+                            padding: "6px 10px",
+                            borderRadius: "5px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Make Admin
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => updateUserRole(u.id, "user")}
+                          style={{
+                            backgroundColor: "#e67e22",
+                            color: "white",
+                            border: "none",
+                            padding: "6px 10px",
+                            borderRadius: "5px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Remove Admin
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => deleteUser(u.id)}
+                        style={{
+                          backgroundColor: "#c0392b",
+                          color: "white",
+                          border: "none",
+                          padding: "6px 10px",
+                          borderRadius: "5px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

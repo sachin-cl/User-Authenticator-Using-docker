@@ -16,13 +16,9 @@ CORS(app)
 
 # ---------------- JWT CONFIG ----------------
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-key")
-app.config["JWT_TOKEN_LOCATION"] = ["headers"]
-app.config["JWT_HEADER_NAME"] = "Authorization"
-app.config["JWT_HEADER_TYPE"] = "Bearer"
-
 jwt = JWTManager(app)
 
-# ---------------- DB CONNECTION (SAFE) ----------------
+# ---------------- DB CONNECTION ----------------
 def get_db():
     return mysql.connector.connect(
         host=os.getenv("DB_HOST", "mysql-db"),
@@ -31,38 +27,33 @@ def get_db():
         database=os.getenv("DB_NAME", "authdb")
     )
 
-# ---------------- HEALTH CHECK ----------------
-@app.route("/health", methods=["GET"])
+# ---------------- HEALTH ----------------
+@app.route("/health")
 def health():
-    return jsonify({"status": "Backend is healthy"}), 200
+    return jsonify({"status": "Backend healthy"}), 200
 
 # ---------------- REGISTER ----------------
 @app.route("/register", methods=["POST"])
 def register():
     data = request.get_json()
-    if not data:
-        return jsonify({"error": "Invalid JSON"}), 400
-
     email = data.get("email")
     password = data.get("password")
 
     if not email or not password:
-        return jsonify({"error": "Email and password required"}), 400
+        return jsonify({"error": "Email & password required"}), 400
 
     db = get_db()
-    cursor = db.cursor(dictionary=True)
+    cur = db.cursor(dictionary=True)
 
-    cursor.execute("SELECT id FROM users WHERE email=%s", (email,))
-    if cursor.fetchone():
+    cur.execute("SELECT id FROM users WHERE email=%s", (email,))
+    if cur.fetchone():
         return jsonify({"error": "User already exists"}), 409
 
-    hashed_password = bcrypt.hashpw(
-        password.encode(), bcrypt.gensalt()
-    ).decode()
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    cursor.execute(
-        "INSERT INTO users (email, password, role) VALUES (%s, %s, %s)",
-        (email, hashed_password, "user")
+    cur.execute(
+        "INSERT INTO users (email, password, role) VALUES (%s, %s, 'user')",
+        (email, hashed)
     )
     db.commit()
 
@@ -72,63 +63,101 @@ def register():
 @app.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
-    if not data:
-        return jsonify({"error": "Invalid JSON"}), 400
-
     email = data.get("email")
     password = data.get("password")
 
     db = get_db()
-    cursor = db.cursor(dictionary=True)
+    cur = db.cursor(dictionary=True)
 
-    cursor.execute("SELECT * FROM users WHERE email=%s", (email,))
-    user = cursor.fetchone()
+    cur.execute("SELECT * FROM users WHERE email=%s", (email,))
+    user = cur.fetchone()
 
-    if not user:
+    if not user or not bcrypt.checkpw(password.encode(), user["password"].encode()):
         return jsonify({"error": "Invalid credentials"}), 401
 
-    if not bcrypt.checkpw(password.encode(), user["password"].encode()):
-        return jsonify({"error": "Invalid credentials"}), 401
-
-    # ✅ JWT CORRECT: identity MUST be a string
     token = create_access_token(
         identity=user["email"],
         additional_claims={"role": user["role"]}
     )
 
-    return jsonify({
-        "message": "Login successful",
-        "access_token": token
-    }), 200
+    return jsonify(access_token=token), 200
 
-# ---------------- PROFILE (PROTECTED) ----------------
-@app.route("/profile", methods=["GET"])
+# ---------------- PROFILE ----------------
+@app.route("/profile")
 @jwt_required()
 def profile():
-    email = get_jwt_identity()      # string
-    claims = get_jwt()              # extra data
-    role = claims.get("role")
-
     return jsonify({
-        "email": email,
-        "role": role
+        "email": get_jwt_identity(),
+        "role": get_jwt().get("role")
     }), 200
 
-# ---------------- ADMIN (ROLE PROTECTED) ----------------
-@app.route("/admin/users", methods=["GET"])
+# ---------------- LIST USERS (ADMIN) ----------------
+@app.route("/admin/users")
 @jwt_required()
 def list_users():
-    claims = get_jwt()
-    if claims.get("role") != "admin":
+    if get_jwt().get("role") != "admin":
         return jsonify({"error": "Admins only"}), 403
 
     db = get_db()
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("SELECT id, email, role FROM users")
-    users = cursor.fetchall()
+    cur = db.cursor(dictionary=True)
+    cur.execute("SELECT id, email, role FROM users")
+    return jsonify(cur.fetchall()), 200
 
-    return jsonify(users), 200
+# ---------------- UPDATE ROLE ----------------
+@app.route("/admin/users/<int:user_id>/role", methods=["PUT"])
+@jwt_required()
+def update_role(user_id):
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "Admins only"}), 403
 
+    admin_email = get_jwt_identity()
+    new_role = request.get_json().get("role")
+
+    if new_role not in ["admin", "user"]:
+        return jsonify({"error": "Invalid role"}), 400
+
+    db = get_db()
+    cur = db.cursor(dictionary=True)
+
+    cur.execute("SELECT email FROM users WHERE id=%s", (user_id,))
+    user = cur.fetchone()
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user["email"] == admin_email:
+        return jsonify({"error": "Cannot change your own role"}), 400
+
+    cur.execute("UPDATE users SET role=%s WHERE id=%s", (new_role, user_id))
+    db.commit()
+
+    return jsonify({"message": "Role updated"}), 200
+
+# ---------------- DELETE USER ----------------
+@app.route("/admin/users/<int:user_id>", methods=["DELETE"])
+@jwt_required()
+def delete_user(user_id):
+    if get_jwt().get("role") != "admin":
+        return jsonify({"error": "Admins only"}), 403
+
+    admin_email = get_jwt_identity()
+
+    db = get_db()
+    cur = db.cursor(dictionary=True)
+
+    cur.execute("SELECT email FROM users WHERE id=%s", (user_id,))
+    user = cur.fetchone()
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user["email"] == admin_email:
+        return jsonify({"error": "Cannot delete your own account"}), 400
+
+    cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
+    db.commit()
+
+    return jsonify({"message": "User deleted"}), 200
 
 # ---------------- START ----------------
 if __name__ == "__main__":
